@@ -1,12 +1,12 @@
 pub mod Tools{
-    use std::{f32::consts::E, fmt::Debug, fs::{self, DirEntry, FileType, Permissions}, os::unix::fs::PermissionsExt, path::PathBuf, process::Command};
+    use std::{cmp::Ordering, f32::consts::E, fmt::Debug, fs::{self, DirEntry, FileType, Permissions, write}, os::unix::fs::PermissionsExt, path::PathBuf, process::Command};
+    use path_clean::PathClean;
 
-
-    pub fn list_dir(cwd:PathBuf,target:String) -> String{
+    pub fn list_dir(cwd:&PathBuf,target:&str) -> String{
         let mut ret = String::new();
-        let target_path = PathBuf::from(&target).canonicalize().unwrap();
+        let target_path = cwd.join(PathBuf::from(&target)).canonicalize().unwrap();
         if !target_path.starts_with(&cwd) || !target_path.exists(){
-            return format!("Path {} does not Exist!",&target);
+            return format!("Path {} does not Exist!\n",&target);
         }
         fs::read_dir(target_path).unwrap().for_each(|x|{
             let content = x.unwrap();
@@ -19,8 +19,8 @@ pub mod Tools{
         ret            
     }
 
-    pub fn cat_file(cwd:PathBuf,target:String) -> String{
-        let target_path = PathBuf::from(&target).canonicalize().unwrap();
+    pub fn cat_file(cwd:&PathBuf,target:&str) -> String{
+        let target_path = cwd.join(PathBuf::from(&target)).canonicalize().unwrap();
         if !target_path.starts_with(&cwd) || !target_path.exists(){
             return format!("Path {} does not Exist!",&target);
         }
@@ -29,44 +29,48 @@ pub mod Tools{
         }
         fs::read_to_string(target_path).unwrap()
     }
-
-    pub fn create_dir(cwd:PathBuf,target:String) -> String{
-        let mut target_path = PathBuf::from(&target).canonicalize().unwrap();
-        let temp = target_path.clone();
-        let rel_path = temp.as_path().strip_prefix(&cwd).unwrap().to_str().unwrap();
+    // Will create dir if file at the end of dir path then the file wont be created
+    pub fn create_dir(cwd:&PathBuf,target:&str) -> String{
+        let mut target_path = cwd.join(PathBuf::from(&target)).clean();
+        println!("{:?} {:?}",cwd,target_path);
         if !target_path.starts_with(&cwd){
-            return format!("Path {} does not Exist!",&rel_path);
+            return format!("Path {} does not Exist!",target);
         }
         if target_path.exists(){
-            return format!("Path {} already Exists!",&rel_path)
+            return format!("Path {} already Exists!",target)
         }
         if target_path.is_file(){
             target_path = target_path.parent().unwrap().to_path_buf();
         }
+        if target_path.iter().last().unwrap().to_str().unwrap().find(".").unwrap_or(0) > 0{
+            target_path = target_path.parent().unwrap().to_path_buf();
+        };
         let k = match fs::create_dir_all(&target_path){
-            Err(_) => &format!("Failed to create dir: {}",rel_path),
+            Err(_) => &format!("Failed to create dir: {}",target),
             _ => ""
         };
         if !k.is_empty(){
             return k.to_string();
         }
-        format!("Created dir: {}",rel_path)
+        format!("Created dir: {}",target)
     }
 
 
     // Creates the dir and file if not exists and writes content to the file can be used for rewritting a file as well[Conditions managed internally]
-    pub fn create_file(cwd:PathBuf,target:String,content:String) -> String{
-        let target_path = PathBuf::from(&target).canonicalize().unwrap();
-        let temp = target_path.clone();
-        let rel_path = temp.as_path().strip_prefix(&cwd).unwrap().to_str().unwrap();
-        if !target_path.starts_with(&cwd){
+    pub fn create_file(cwd:&PathBuf,target:&str,content:&str) -> String{
+    let target_path = cwd.join(PathBuf::from(&target)).clean();
+
+       if !target_path.starts_with(&cwd){
             return format!("Path {} does not Exist!",&target);
         }
         if !target_path.exists(){
-            let k = create_dir(cwd, target);
+            let k = create_dir(cwd, &target[..]);
             if !k.starts_with("Created dir"){
                 return k;
             }
+        }
+        if target_path.is_dir(){
+          return format!("{} is not a File!",target);
         }
         let k = match fs::write(target_path, content){
             Err(_) => "Dir path created but something went wrong",
@@ -76,34 +80,72 @@ pub mod Tools{
             return k.to_string();
         }
 
-        format!("File {} created and written to",rel_path)
+        format!("File {} created and written to",target)
     }
 
-    pub fn modify_file(cwd:PathBuf,target:String,changes: Vec<(usize,usize,String)>) -> String{
-        let ret = create_file(cwd.clone(), target.clone(), "".to_string());
-        if !ret.ends_with("created and written to"){
-            return ret;
+
+    pub fn write_file(cwd:&PathBuf,target: &str,content:&str) -> String{
+    let target_path = cwd.join(PathBuf::from(&target)).clean();
+
+       if !target_path.starts_with(&cwd){
+            return format!("Path {} does not Exist!",&target);
         }
-        let target_path = PathBuf::from(&target).canonicalize().unwrap();
-        let rel_path = target_path.as_path().strip_prefix(&cwd).unwrap().to_str().unwrap();
-        let mut buff = cat_file(cwd, target);
+        if !target_path.exists(){
+            let k = create_dir(cwd, &target[..]);
+            if !k.starts_with("Created dir"){
+                return k;
+            }
+        }
+        if target_path.is_dir(){
+          return format!("{} is not a File!",target);
+        }
+        
+        write(target_path, content).unwrap();
+        format!("File {} written to",target)
+    }
+
+    pub fn modify_file(cwd:&PathBuf,target:&str,mut changes: Vec<(usize,usize,&str)>) -> String{
+        
+    let target_path = cwd.join(PathBuf::from(&target)).clean();
+        if !target_path.exists(){
+            let ret = create_file(cwd, &target[..], "");
+            if !ret.ends_with("created and written to"){
+                return ret;
+            }
+        }
+        changes.sort_by(|x,y|{y.0.cmp(&x.0)});
+
+        let mut buff = cat_file(cwd, &target[..]);
+        println!("{buff}");
         if buff.ends_with(" does not Exist!") || buff.ends_with(" is not a file"){
             return buff;
         }
         let (mut removals,mut additions) = ((0,0),(0,0));
+        let flen = buff.len();
         for (strt,end,content) in &changes{
+            if *end > flen{
+                continue;
+            }
             removals.0 += end-strt;
             additions.0 += content.len();
             removals.1 = buff[*strt..*end].chars().fold(0, |acc,x| acc+if x == '\n'{1}else{0});
             additions.1 = content.chars().fold(0, |acc,x| acc+if x == '\n'{1}else{0});
+
             buff.replace_range(*strt..*end, content);
         }
-        format!("File {} ,Lines -> +{} and -{} ,Chars => +{} and -{} ,modified",rel_path,additions.1,removals.1,additions.0,removals.0)
+
+        let k = write_file(cwd, target, &buff[..]);
+        if !k.ends_with(" written to"){
+            return k;
+        }
+
+        format!("File {} ,Lines -> +{} and -{} ,Chars => +{} and -{} ,modified",target,additions.1,removals.1,additions.0,removals.0)
     }
 
 
+// TODO: Remainign to Test
 
-    pub fn remove_dir(cwd: PathBuf, target: String) -> String {
+    pub fn remove_dir(cwd:&PathBuf, target: &str) -> String {
         // Resolve relative to the sandbox root, not the process cwd.
         let joined = cwd.join(&target);
         let target_path = match joined.canonicalize() {
@@ -126,7 +168,7 @@ pub mod Tools{
     }
 
 
-pub fn cargo_call(cwd: PathBuf, target: String, args: Vec<String>) -> String {
+pub fn cargo_call(cwd:&PathBuf, target: &str, args: Vec<String>) -> String {
     let joined = cwd.join(&target);
     let target_path = match joined.canonicalize() {
         Ok(p) => p,
@@ -171,6 +213,8 @@ pub fn cargo_call(cwd: PathBuf, target: String, args: Vec<String>) -> String {
 }
 
 
+
+
     fn mode_to_string(mode: u32) -> String {
         let mut s = String::with_capacity(10);
         s.push(match mode & 0o170000 {
@@ -203,6 +247,25 @@ pub fn cargo_call(cwd: PathBuf, target: String, args: Vec<String>) -> String {
         s
     }
 
+    pub fn estimate_tokens(s: &str) -> usize {
+        (s.len() + 3) / 4
+    }
+
+    pub fn truncate_head_tail(s: &str, head: usize, tail: usize) -> String {
+        let lines: Vec<_> = s.lines().collect();
+
+        if lines.len() <= head + tail {
+            return lines.join("\n");
+        }
+
+        let mut out = String::new();
+
+        out.push_str(&lines[..head].join("\n"));
+        out.push_str("\n\n... OUTPUT TRUNCATED ...\n\n");
+        out.push_str(&lines[lines.len()-tail..].join("\n"));
+
+        out
+    }
 
 
 }

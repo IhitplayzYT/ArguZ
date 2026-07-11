@@ -30,7 +30,7 @@ pub mod Helper{
         }
 
         pub fn Pare_Args(&mut self){
-            let mut args = env::args().collect::<Vec<String>>();
+            let mut args = env::args().skip(1).collect::<Vec<String>>();
             for i in &mut args{
                 if i == "-d" || i == "--debug"{
                     self.dbg = true;
@@ -46,8 +46,9 @@ pub mod Helper{
                         self.token_limits.1 = usize::MAX;
                     }
                 } else if i.starts_with("--root=") || i.starts_with("--idir"){
-                    self.root_dir= PathBuf::from(i.split_off(i.find("=").unwrap())).canonicalize().unwrap();
+                    self.root_dir= PathBuf::from(&i.split_off(i.find("=").unwrap())[1..]).canonicalize().unwrap();
                 }else{
+
                     Help();
                 }
             }
