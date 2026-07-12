@@ -1,17 +1,18 @@
 pub mod write_file{
     use std::{fs::write, path::PathBuf};
 
-use crate::tool::{Create_Dir::create_dir::create_dir, tools::Tools::Tool};
+use crate::tool::{Create_Dir::create_dir::create_dir, tools::Tools::{AgentContext, Tool}};
 
-    
-    pub fn write_file(cwd:&PathBuf,target: &str,content:&str) -> String{
-    let target_path = cwd.join(PathBuf::from(&target)).clean();
+use anyhow::anyhow;
+use path_clean::clean; 
+    pub fn _write_file(cwd:&PathBuf,ws:&PathBuf,target: &str,content:&str) -> String{
+    let target_path = clean(cwd.join(PathBuf::from(&target)));
 
-       if !target_path.starts_with(&cwd){
+       if !target_path.starts_with(ws){
             return format!("Path {} does not Exist!",&target);
         }
         if !target_path.exists(){
-            let k = create_dir(cwd, &target[..]);
+            let k = create_dir(cwd, ws,&target[..]);
             if !k.starts_with("Created dir"){
                 return k;
             }
@@ -24,19 +25,11 @@ use crate::tool::{Create_Dir::create_dir::create_dir, tools::Tools::Tool};
         format!("File {} written to",target)
     }
 
-    struct write_file{
-        cwd:PathBuf
-    }
-
-    impl write_file{
-        pub fn new(cwd:PathBuf) -> Self{
-            Self { cwd }
-        }
-    }
+    struct write_file;
 
     impl Tool for write_file{
 
-        fn name(&self) -> &str {
+        fn name(&self) -> &'static str {
             "write_file"
         }
         fn description(&self) -> &'static str {
@@ -44,12 +37,13 @@ use crate::tool::{Create_Dir::create_dir::create_dir, tools::Tools::Tool};
         }
         fn execute(
         &self,
+        ctx:&mut AgentContext,
         args: serde_json::Value,
         ) -> anyhow::Result<String>
         {
-            let tgt = args.get("path").and_then(serde_json::Value::as_str).ok_or("Missing path")?;
-            let content = args.get("content").and_then(serde_json::Value::as_str).ok_or("Missing content")?;
-            Ok(write_file(&self.cwd, tgt,content))
+            let tgt = args.get("path").and_then(serde_json::Value::as_str).ok_or_else(|| anyhow!("Missing path"))?;
+            let content = args.get("content").and_then(serde_json::Value::as_str).ok_or_else(|| anyhow!("Missing content"))?;
+            Ok(_write_file(&ctx.cwd,&ctx.workspace, tgt,content))
         }
 
     }

@@ -1,14 +1,15 @@
 pub mod grep{
 
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use std::fs;
 use std::path::PathBuf;
 use walkdir::WalkDir;
 
-use crate::tool::tools::Tools::Tool;
+use crate::tool::tools::Tools::{AgentContext, Tool};
 
 pub fn grep(
     cwd: &PathBuf,
+    ws:&PathBuf,
     needle: &str,
 ) -> Result<String> {
 
@@ -26,6 +27,9 @@ pub fn grep(
         }
 
         let path = entry.path();
+        if !path.starts_with(ws){
+            continue;
+        }
 
         let Ok(contents) = fs::read_to_string(path) else {
             // skip binary files
@@ -55,19 +59,11 @@ pub fn grep(
     Ok(out)
 }
 
-    struct Grep{
-        cwd:PathBuf
-    }
-
-    impl Grep{
-        pub fn new(cwd:PathBuf) -> Self{
-            Self { cwd }
-        }
-    }
+    struct Grep;
 
     impl Tool for Grep{
 
-        fn name(&self) -> &str {
+        fn name(&self) -> &'static str {
             "grep"
         }
         fn description(&self) -> &'static str {
@@ -75,11 +71,12 @@ pub fn grep(
         }
         fn execute(
         &self,
+        ctx: &mut AgentContext,
         args: serde_json::Value,
         ) -> anyhow::Result<String>
         {
-            let tgt = args.get("target").and_then(serde_json::Value::as_str).ok_or("Missing target")?;
-            Ok(grep(&self.cwd, tgt).unwrap_or("Grep failed".to_string()))
+            let tgt = args.get("target").and_then(serde_json::Value::as_str).ok_or_else(|| anyhow!("Missing target"))?;
+            Ok(grep(&ctx.cwd,&ctx.workspace, tgt).unwrap_or("Grep failed".to_string()))
         }
 
     }

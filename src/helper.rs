@@ -29,7 +29,7 @@ pub mod Helper{
             Self { dbg: false, url: URL.to_string(), token_limits: (T_MIN,T_MAX),root_dir:env::current_dir().unwrap()}
         }
 
-        pub fn Pare_Args(&mut self){
+        pub fn Parse_Args(&mut self){
             let mut args = env::args().skip(1).collect::<Vec<String>>();
             for i in &mut args{
                 if i == "-d" || i == "--debug"{

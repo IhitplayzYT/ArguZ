@@ -1,19 +1,21 @@
 pub mod remove_dir{
     use std::{fs, path::PathBuf};
 
-use crate::tool::tools::Tools::Tool;
+use anyhow::anyhow;
+
+use crate::tool::tools::Tools::{AgentContext, Tool};
 
 
 
     // Can delete files as well
-    pub fn remove_dir(cwd:&PathBuf, target: &str) -> String {
+    pub fn remove_dir(cwd:&PathBuf,ws:&PathBuf, target: &str) -> String {
         // Resolve relative to the sandbox root, not the process cwd.
         let joined = cwd.join(&target);
         let target_path = match joined.canonicalize() {
             Ok(p) => p,
             Err(_) => return format!("Path '{}' does not Exist!", target),
         };
-        if !target_path.starts_with(&cwd) {
+        if !target_path.starts_with(ws) {
             return format!("Path {} does not Exist!",&target);
 
         }
@@ -28,18 +30,10 @@ use crate::tool::tools::Tools::Tool;
         }
     }
 
-    struct rm{
-        cwd:PathBuf
-    }
-
-    impl rm{
-        pub fn new(cwd:PathBuf) -> Self{
-            Self { cwd }
-        }
-    }
+    struct rm;
 
     impl Tool for rm{
-        fn name(&self) -> &str {
+        fn name(&self) -> &'static str {
             "remove_dir"
         }
 
@@ -48,11 +42,12 @@ use crate::tool::tools::Tools::Tool;
         }
         fn execute(
         &self,
+        ctx:&mut AgentContext,
         args: serde_json::Value,
         ) -> anyhow::Result<String>
         {
-            let tgt = args.get("path").and_then(serde_json::Value::as_str).ok_or("Missing path")?;
-            Ok(remove_dir(&self.cwd, tgt))
+            let tgt = args.get("path").and_then(serde_json::Value::as_str).ok_or_else(|| anyhow!("Missing path"))?;
+            Ok(remove_dir(&ctx.cwd,&ctx.workspace, tgt))
         }
         
 

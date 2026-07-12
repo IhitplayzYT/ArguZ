@@ -1,12 +1,8 @@
 pub mod Agent{
 use std::{
     path::PathBuf,
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-    },
+    sync::{Arc,atomic::{AtomicBool, Ordering},},
 };
-
 
 use crate::tool::tools::Tools::{Tool, ToolRegistry};
 
@@ -26,20 +22,32 @@ pub struct Agent {
 #[derive(Clone)]
 pub struct AgentConfig {
     pub max_steps: usize,
+    pub min_context_tokens:usize,
     pub max_context_tokens: usize,
     pub max_output_tokens: usize,
     pub temperature: f32,
 }
+
+
+
 impl Default for AgentConfig {
     fn default() -> Self {
         Self {
             max_steps: 50,
+            min_context_tokens: 0,
             max_context_tokens: 100_000,
             max_output_tokens: 4096,
             temperature: 0.0,
         }
     }
 }
+
+impl AgentConfig{
+    pub fn new(ms:Option<usize>,mct:Option<usize>,mact:Option<usize>,maot:Option<usize>,t:Option<f32>) -> Self{
+        Self { max_steps: ms.unwrap_or(0), min_context_tokens: mct.unwrap_or(0), max_context_tokens: mact.unwrap_or(100000), max_output_tokens: maot.unwrap_or(4096), temperature: t.unwrap_or(0.0) }
+    }
+}
+
 
 impl Agent {
 
@@ -51,21 +59,13 @@ impl Agent {
         let cwd = cwd.canonicalize()?;
 
         Ok(Self {
-
             cwd: cwd.clone(),
-
             model,
-
-            tools: ToolRegistry::new(cwd),
-
+            tools: ToolRegistry::new(cwd).unwrap(),
             memory: Memory::new(),
-
             config: AgentConfig::default(),
-
             state: AgentState::Idle,
-
             steps: 0,
-
             cancelled: Arc::new(AtomicBool::new(false)),
         })
     }
@@ -109,6 +109,13 @@ impl Memory {
         text: String,
     ) {
         self.messages.push(Message::User(text));
+    }
+
+    pub fn push_system(
+        &mut self,
+        text: String,
+    ) {
+        self.messages.push(Message::System(text));
     }
 
     pub fn push_tool(
@@ -186,7 +193,6 @@ pub enum ModelResponse {
         name: String,
         arguments: serde_json::Value,
     },
-
     Final(String),
 }
 

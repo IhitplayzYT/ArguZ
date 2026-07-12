@@ -3,20 +3,22 @@ pub mod modify_file{
 
 use serde::Deserialize;
 
-use crate::tool::{Cat_File::cat_file::cat_file, Create_File::create_file::create_file, Write_File::write_file::write_file, tools::Tools::Tool};
+use path_clean::clean;
 
-    pub fn modify_file(cwd:&PathBuf,target:&str,mut changes: Vec<(usize,usize,&str)>) -> String{
+use crate::tool::{Cat_File::cat_file::cat_file, Create_File::create_file::create_file, Write_File::write_file::_write_file, tools::Tools::{AgentContext, Tool}};
+
+    pub fn modify_file(cwd:&PathBuf,ws:&PathBuf,target:&str,mut changes: Vec<(usize,usize,String)>) -> String{
         
-    let target_path = cwd.join(PathBuf::from(&target)).clean();
+    let target_path = clean(cwd.join(PathBuf::from(&target)));
         if !target_path.exists(){
-            let ret = create_file(cwd, &target[..], "");
+            let ret = create_file(cwd, ws,&target[..], "");
             if !ret.ends_with("created and written to"){
                 return ret;
             }
         }
         changes.sort_by(|x,y|{y.0.cmp(&x.0)});
 
-        let mut buff = cat_file(cwd, &target[..]);
+        let mut buff = cat_file(cwd, ws,&target[..]);
         println!("{buff}");
         if buff.ends_with(" does not Exist!") || buff.ends_with(" is not a file"){
             return buff;
@@ -35,7 +37,7 @@ use crate::tool::{Cat_File::cat_file::cat_file, Create_File::create_file::create
             buff.replace_range(*strt..*end, content);
         }
 
-        let k = write_file(cwd, target, &buff[..]);
+        let k = _write_file(cwd,ws, target, &buff[..]);
         if !k.ends_with(" written to"){
             return k;
         }
@@ -44,26 +46,17 @@ use crate::tool::{Cat_File::cat_file::cat_file, Create_File::create_file::create
     }
 
 
-    pub struct edit{
-        cwd:PathBuf
-    }
+    pub struct edit;
 
     #[derive(Deserialize)]
     
     struct Changes{
         path:String,
-        changes: Vec<(usize,usize,&'static str)>
-    }
-
-
-    impl edit{
-        pub fn new(cwd:PathBuf) -> Self{
-            Self { cwd }
-        }
+        changes: Vec<(usize,usize,String)>
     }
 
     impl Tool for edit{
-        fn name(&self) -> &str {
+        fn name(&self) -> &'static str {
             "modify_file"
         }
 
@@ -72,11 +65,12 @@ use crate::tool::{Cat_File::cat_file::cat_file, Create_File::create_file::create
         }
         fn execute(
         &self,
+        ctx:&mut AgentContext,
         args: serde_json::Value,
         ) -> anyhow::Result<String>
         {
-            let mut params: Changes = serde_json::from_value(args)?;
-            Ok(modify_file(&self.cwd, &params.path,params.changes))
+            let params: Changes = serde_json::from_value(args)?;
+            Ok(modify_file(&ctx.cwd,&ctx.workspace, &params.path,params.changes))
         }
         
 

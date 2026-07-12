@@ -3,27 +3,52 @@ pub mod Tools{
 use path_clean::PathClean;
 
 
+pub struct AgentContext {
+    /// Immutable sandbox root
+    pub workspace: PathBuf,
+    /// Mutable current working directory
+    pub cwd: PathBuf,
+}
+
+impl AgentContext{
+    pub fn new(ws:PathBuf) ->Self{
+        Self { workspace: ws.clone(), cwd: ws}
+    }
+
+}
+
+
 pub trait Tool {
-    fn name(&self) -> &str;
+    fn name(&self) -> &'static str;
+    
+    fn description(&self) -> &'static str;
 
     fn execute(
-        &mut self,
+        &self,
+        ctx:&mut AgentContext,
         args: serde_json::Value,
     ) -> anyhow::Result<String>;
-    fn description(&self) -> &'static str;
 }
 
 
 pub struct ToolRegistry {
+    ctx: AgentContext,
     tools: HashMap<String, Box<dyn Tool>>,
 }
 
 impl ToolRegistry {
-    pub fn new() -> Self {
-        Self {
+    pub fn new(ws: PathBuf) -> anyhow::Result<Self> {
+        let ws = ws.canonicalize()?;
+
+        Ok(Self {
+            ctx: AgentContext {
+                workspace: ws.clone(),
+                cwd: ws,
+            },
             tools: HashMap::new(),
-        }
+        })
     }
+
 
     pub fn register<T: Tool + 'static>(
         &mut self,
@@ -34,7 +59,7 @@ impl ToolRegistry {
     }
 
     pub fn execute(
-        &self,
+        &mut self,
         name: &str,
         args: serde_json::Value,
     ) -> anyhow::Result<String> {
@@ -42,9 +67,9 @@ impl ToolRegistry {
         let tool = self
             .tools
             .get(name)
-            .ok_or(anyhow::anyhow!("Unknown tool"))?;
+            .ok_or_else(|| anyhow::anyhow!("Unknown tool"))?;
 
-        tool.execute(args)
+        tool.execute(&mut self.ctx,args)
     }
 }
 

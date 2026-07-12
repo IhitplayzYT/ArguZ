@@ -1,13 +1,14 @@
 pub mod find{
 
-use anyhow::{bail, Result};
+use anyhow::{Result, anyhow, bail};
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
-use crate::tool::tools::Tools::Tool;
+use crate::tool::tools::Tools::{AgentContext, Tool};
 
 pub fn find_file(
     cwd: &PathBuf,
+    ws:&PathBuf,
     target: &str,
 ) -> Result<String> {
 
@@ -21,6 +22,9 @@ pub fn find_file(
         .filter_map(Result::ok)
     {
         let path = entry.path();
+        if !path.starts_with(ws){
+            continue;
+        }
 
         if entry.file_type().is_file() {
             if let Some(name) = path.file_name().and_then(|s| s.to_str()) {
@@ -40,19 +44,11 @@ pub fn find_file(
     Ok(out)
 }
 
-    struct find{
-        cwd:PathBuf
-    }
-
-    impl find{
-        pub fn new(cwd:PathBuf) -> Self{
-            Self { cwd }
-        }
-    }
+    struct find;
 
     impl Tool for find{
 
-        fn name(&self) -> &str {
+        fn name(&self) -> &'static str {
             "find"
         }
         fn description(&self) -> &'static str {
@@ -60,11 +56,12 @@ pub fn find_file(
         }
         fn execute(
         &self,
+        ctx: &mut AgentContext,
         args: serde_json::Value,
         ) -> anyhow::Result<String>
         {
-            let tgt = args.get("target").and_then(serde_json::Value::as_str).ok_or("Missing target")?;
-            Ok(find_file(&self.cwd, tgt).unwrap_or("Find failed".to_string()))
+            let tgt = args.get("target").and_then(serde_json::Value::as_str).ok_or_else(|| anyhow!("Missing target"))?;
+            Ok(find_file(&ctx.cwd,&ctx.workspace, tgt).unwrap_or("Find failed".to_string()))
         }
 
     }

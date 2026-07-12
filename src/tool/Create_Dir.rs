@@ -1,13 +1,15 @@
 pub mod create_dir{
     use std::{fs, path::PathBuf};
 
-use crate::tool::tools::Tools::Tool;
+use crate::tool::tools::Tools::{AgentContext, Tool};
+use anyhow::anyhow;
+use path_clean::clean;
 
     // Will create dir if file at the end of dir path then the file wont be created
-    pub fn create_dir(cwd:&PathBuf,target:&str) -> String{
-        let mut target_path = cwd.join(PathBuf::from(&target)).clean();
+    pub fn create_dir(cwd:&PathBuf,ws:&PathBuf,target:&str) -> String{
+        let mut target_path = clean(cwd.join(PathBuf::from(&target)));
         println!("{:?} {:?}",cwd,target_path);
-        if !target_path.starts_with(&cwd){
+        if !target_path.starts_with(&ws){
             return format!("Path {} does not Exist!",target);
         }
         if target_path.exists(){
@@ -29,19 +31,11 @@ use crate::tool::tools::Tools::Tool;
         format!("Created dir: {}",target)
     }
 
-struct mkdir{
-    cwd:PathBuf
-}
+struct mkdir;
 
-impl mkdir{
-    pub fn new(cwd:PathBuf) -> Self{
-        Self { cwd }
-    }
-
-}
 
 impl Tool for mkdir{
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "create_dir"
     }
     fn description(&self) -> &'static str {
@@ -49,11 +43,12 @@ impl Tool for mkdir{
     }
     fn execute(
         &self,
+        ctx:&mut AgentContext,
         args: serde_json::Value,
     ) -> anyhow::Result<String>
     {
-        let tgt = args.get("path").and_then(serde_json::Value::as_str).ok_or("Missing path")?;
-        Ok(create_dir(&self.cwd, tgt))
+        let tgt = args.get("path").and_then(serde_json::Value::as_str).ok_or_else(|| anyhow!("Missing path"))?;
+        Ok(create_dir(&ctx.cwd,&ctx.workspace, tgt))
     }
 
 }

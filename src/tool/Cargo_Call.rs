@@ -1,16 +1,18 @@
 pub mod cargo_call{
     use std::{path::PathBuf, process::Command};
 
-use crate::tool::tools::Tools::Tool;
+use anyhow::anyhow;
+
+use crate::tool::tools::Tools::{AgentContext, Tool};
 
 
-pub fn cargo_call(cwd:&PathBuf, target: &str, args: &Vec<String>) -> String {
+pub fn cargo_call(cwd:&PathBuf,ws:&PathBuf,target: &str, args: &Vec<String>) -> String {
     let joined = cwd.join(&target);
     let target_path = match joined.canonicalize() {
         Ok(p) => p,
         Err(_) => return format!("Path '{}' does not exist!", target),
     };
-    if !target_path.starts_with(&cwd) {
+    if !target_path.starts_with(ws) {
         return format!("Access denied: '{}' is outside the working directory.", target);
     }
     if !target_path.is_dir() {
@@ -48,18 +50,10 @@ pub fn cargo_call(cwd:&PathBuf, target: &str, args: &Vec<String>) -> String {
     }
 }
 
-pub struct cargo{
-    cwd:PathBuf
-}
-
-impl cargo{
-    pub fn new(cwd:PathBuf) -> Self{
-        Self { cwd }
-    }
-}
+pub struct cargo;
 
 impl Tool for cargo{
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "cargo"
     }
 
@@ -68,17 +62,18 @@ impl Tool for cargo{
     }
 
     fn execute(
-        &mut self,
+        &self,
+        ctx: &mut AgentContext,
         args: serde_json::Value,
     ) -> anyhow::Result<String>
     {
-        let tgt = args.get("path").and_then(serde_json::Value::as_str).ok_or("Missing path")?;
+        let tgt = args.get("path").and_then(serde_json::Value::as_str).ok_or_else(|| anyhow!("Missing path"))?;
     let params: Vec<String> = serde_json::from_value(
         args.get("params")
             .cloned()
             .ok_or_else(|| anyhow::anyhow!("Missing params"))?,
     )?;
-        anyhow::Ok(cargo_call(&self.cwd, tgt, &params))
+        anyhow::Ok(cargo_call(&ctx.cwd,&ctx.workspace,tgt, &params))
         
     }
 
