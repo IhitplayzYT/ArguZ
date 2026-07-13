@@ -1,11 +1,13 @@
 pub mod Agent{
 use std::{
-    path::PathBuf,
-    sync::{Arc,atomic::{AtomicBool, Ordering},},
+    path::PathBuf, sync::{Arc, RwLock, atomic::{AtomicBool, Ordering},},
 };
+use std::sync::LazyLock;
+use serde::{Deserialize, Serialize};
 
-use crate::tool::tools::Tools::{Tool, ToolRegistry};
+use crate::{helper::Helper::{END_POINT, MODEL}, tool::tools::Tools::{Tool, ToolRegistry}};
 
+static mut Chat_History: LazyLock<RwLock<Vec<Message>>> = LazyLock::new(|| RwLock::new(vec![]));
 
 pub struct Agent {
     cwd:PathBuf,
@@ -35,9 +37,9 @@ impl Default for AgentConfig {
         Self {
             max_steps: 50,
             min_context_tokens: 0,
-            max_context_tokens: 100_000,
-            max_output_tokens: 4096,
-            temperature: 0.0,
+            max_context_tokens: 200000, // Ensures massive context
+            max_output_tokens: 8192,
+            temperature: 0.4, // For coding we keep temp low to avoid creativity and p;refer working over creative
         }
     }
 }
@@ -137,6 +139,50 @@ impl Memory {
         );
     }
 
+    fn unwrap_memory(&self) -> Vec<(&'static str,String)> {
+        self.messages.iter().map(|m| {
+            match m {
+                Message::System(x) => ("system",x.clone()),
+                Message::User(x) => ("user",x.clone()),
+                Message::Assistant(x) => ("assistant",x.clone()),
+                Message::Tool(name, output) => ("tool",format!("{name}\n{output}")),
+            }
+
+        }).collect()
+    }
+
+    fn to_ollama(&self) -> Vec<OllamaMessage> {
+
+        self.messages.iter().map(|m| {
+
+            match m {
+
+                Message::System(x) => OllamaMessage {
+                    role: "system".into(),
+                    content: x.clone(),
+                },
+
+                Message::User(x) => OllamaMessage {
+                    role: "user".into(),
+                    content: x.clone(),
+                },
+
+                Message::Assistant(x) => OllamaMessage {
+                    role: "assistant".into(),
+                    content: x.clone(),
+                },
+
+                Message::Tool(name, output) => OllamaMessage {
+                    role: "tool".into(),
+                    content: format!("{name}\n{output}"),
+                },
+            }
+
+        }).collect()
+    }
+
+
+
 }
 
 
@@ -150,13 +196,26 @@ pub enum AgentState {
     Cancelled,
 }
 
-#[derive(Clone)]
+#[derive(Clone,Serialize,Deserialize)]
 pub enum Message {
     System(String),
     User(String),
     Assistant(String),
     Tool(String,String),
 }
+
+impl Message{
+    pub fn role(&self) -> &'static str{
+        match self{
+            Message::Assistant(_) => "assistant",
+            Message::System(_) => "system",
+            Message::User(_) => "user",
+            Message::Tool(_,_) => "tool",
+        }
+    }
+
+}
+
 
 pub trait LLM {
     fn complete(
@@ -167,28 +226,95 @@ pub trait LLM {
 pub struct Ollama {
     pub endpoint: String,
     pub model: String,
+    pub client: reqwest::blocking::Client,
 }
+
+impl Ollama{
+    pub fn new(ed:Option<String>,model:Option<String>) -> Self{
+        Self { endpoint: ed.unwrap_or(END_POINT.to_string()), model: model.unwrap_or(MODEL.to_string()),client: reqwest::blocking::Client::new(),}
+    }
+
+}
+
 impl LLM for Ollama {
 
     fn complete(
         &mut self,
         memory: &Memory,
     ) -> anyhow::Result<ModelResponse> {
+    
+        let req = OllamaRequest{
+            model: &self.model,
+            messages: memory.to_ollama(),
+            stream:false,
+            temp: 0.4
+        };
+        let resp :OllamaResponse= self.client.post(format!("{}/api/chat",self.endpoint)).json(&req).send()?.error_for_status()?.json()?;
 
-
-        // Build request
-
-        // POST http://localhost:11434/api/chat
-
-        // Parse response
-
+        parse_ollama_response(resp.message.content)?;
         todo!()
     }
 
 }
 
-pub enum ModelResponse {
 
+// Weird Magic Json Syntax for serde conversions of json
+#[derive(Deserialize)]
+#[serde(tag="type")]
+enum RawResponse {
+
+    #[serde(rename="tool")]
+    Tool {
+        name: String,
+        arguments: serde_json::Value,
+    },
+
+    #[serde(rename="final")]
+    Final {
+        content: String,
+    },
+}
+
+pub fn parse_ollama_response(content:String) -> anyhow::Result<ModelResponse>{
+    let r: RawResponse = serde_json::from_str(&content)?;
+
+    Ok(match r {
+
+        RawResponse::Tool {
+            name,
+            arguments,
+        } => ModelResponse::ToolCall {
+            name,
+            arguments,
+        },
+
+        RawResponse::Final {
+            content,
+        } => ModelResponse::Final(content),
+    })
+}
+
+
+#[derive(Serialize)]
+struct OllamaRequest<'a> {
+    model: &'a str,
+    messages: Vec<OllamaMessage>,
+    stream: bool,
+    temp: f32,
+}
+
+#[derive(Deserialize)]
+struct OllamaResponse {
+    message: OllamaMessage,
+}
+
+#[derive(Serialize, Deserialize)]
+struct OllamaMessage {
+    role: String,
+    content: String,
+}
+
+pub enum ModelResponse {
     ToolCall {
         name: String,
         arguments: serde_json::Value,

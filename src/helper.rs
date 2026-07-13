@@ -7,8 +7,9 @@ pub mod Helper{
     pub const DBG_STR:&str = "";
     pub const T_MIN:usize = 0;
     pub const T_MAX:usize = 5000;
-    pub const URL:&str = "http://localhost:11434";
-
+    
+    pub const END_POINT:&str = "http://localhost:11434";
+    pub const MODEL:&str = "llama3.2";
     pub fn Help(){
         println!("{DBG_STR}");
         exit(0);
@@ -20,13 +21,14 @@ pub mod Helper{
         pub dbg: bool,
         pub url: String,
         pub token_limits:(usize,usize),
-        pub root_dir: PathBuf
+        pub root_dir: PathBuf,
+        pub model: String,
     }
 
 
     impl CLI{
         pub fn new() -> Self{
-            Self { dbg: false, url: URL.to_string(), token_limits: (T_MIN,T_MAX),root_dir:env::current_dir().unwrap()}
+            Self { dbg: false, url: END_POINT.to_string(), token_limits: (T_MIN,T_MAX),root_dir:env::current_dir().unwrap(),model:MODEL.to_string()}
         }
 
         pub fn Parse_Args(&mut self){
@@ -47,6 +49,8 @@ pub mod Helper{
                     }
                 } else if i.starts_with("--root=") || i.starts_with("--idir"){
                     self.root_dir= PathBuf::from(&i.split_off(i.find("=").unwrap())[1..]).canonicalize().unwrap();
+                }else if i.starts_with("--model="){
+                    self.model = i.split_off(i.find("=").unwrap()+1);
                 }else{
 
                     Help();
