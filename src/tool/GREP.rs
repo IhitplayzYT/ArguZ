@@ -59,7 +59,7 @@ pub fn grep(
     Ok(out)
 }
 
-    struct Grep;
+    pub struct Grep;
 
     impl Tool for Grep{
 

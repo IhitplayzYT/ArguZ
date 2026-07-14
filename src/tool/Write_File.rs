@@ -25,7 +25,7 @@ use path_clean::clean;
         format!("File {} written to",target)
     }
 
-    struct write_file;
+    pub struct write_file;
 
     impl Tool for write_file{
 

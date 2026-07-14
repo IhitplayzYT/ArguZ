@@ -30,7 +30,7 @@ use crate::tool::tools::Tools::{AgentContext, Tool};
         }
     }
 
-    struct rm;
+    pub struct rm;
 
     impl Tool for rm{
         fn name(&self) -> &'static str {

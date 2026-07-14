@@ -1,6 +1,6 @@
 pub mod Agent{
 use std::{
-    path::PathBuf, sync::{Arc, RwLock, atomic::{AtomicBool, Ordering},},
+     fmt::Display, path::PathBuf, sync::{Arc, RwLock, atomic::{AtomicBool, Ordering},},
 };
 use std::sync::LazyLock;
 use serde::{Deserialize, Serialize};
@@ -10,18 +10,41 @@ use crate::{helper::Helper::{END_POINT, MODEL}, tool::tools::Tools::{Tool, ToolR
 static mut Chat_History: LazyLock<RwLock<Vec<Message>>> = LazyLock::new(|| RwLock::new(vec![]));
 
 pub struct Agent {
-    cwd:PathBuf,
-    model: Box<dyn LLM>,
-    tools: ToolRegistry,
-    memory: Memory,
-    steps: usize,    
-    config: AgentConfig,
-    state: AgentState,    
-    cancelled: Arc<AtomicBool>,
+    pub cwd:PathBuf,
+    pub model: Box<dyn LLM>,
+    pub tools: ToolRegistry,
+    pub memory: Memory,
+    pub steps: usize,    
+    pub config: AgentConfig,
+    pub state: AgentState,
+    pub cancelled: Arc<AtomicBool>,
 
 }
 
-#[derive(Clone)]
+impl Display for Agent{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f,"===== Agent Details =====
+        Workspace: {:?}
+        LLM: {}
+        Available Tools: {:?}
+        Memory: {}
+        Steps: {}
+        AgentConfig: {:?}
+        SystemPrompt: {}
+        =================",&self.cwd,self.model.name(),self.tools.get_all(),if self.memory.messages.is_empty(){"Empty"} else{"Populated"},self.steps,self.config,if let Message::System(x) = &self.memory.messages[0]{&x}else{"Fatal"})
+    }
+
+}
+
+impl Agent{
+    pub fn new(cwd:PathBuf,model: Option<Box<dyn LLM>>,tools: Option<ToolRegistry>,memory:Option<Memory>,steps:Option<usize>,config:Option<AgentConfig>) -> Self{
+        Self { cwd:cwd.clone(), model: model.unwrap_or(Box::new(Ollama::new(None, None))), tools:tools.unwrap_or(ToolRegistry::new(&cwd).unwrap()), memory: memory.unwrap_or(Memory::new()), steps: steps.unwrap_or(10), config: config.unwrap_or(AgentConfig::default()), state: AgentState::Idle, cancelled: Arc::new(AtomicBool::new(false))}
+    }
+
+}
+
+
+#[derive(Clone,Debug)]
 pub struct AgentConfig {
     pub max_steps: usize,
     pub min_context_tokens:usize,
@@ -53,7 +76,7 @@ impl AgentConfig{
 
 impl Agent {
 
-    pub fn new(
+    pub fn min_new(
         cwd: PathBuf,
         model: Box<dyn LLM>,
     ) -> anyhow::Result<Self> {
@@ -63,7 +86,7 @@ impl Agent {
         Ok(Self {
             cwd: cwd.clone(),
             model,
-            tools: ToolRegistry::new(cwd).unwrap(),
+            tools: ToolRegistry::new(&cwd).unwrap(),
             memory: Memory::new(),
             config: AgentConfig::default(),
             state: AgentState::Idle,
@@ -94,6 +117,7 @@ impl Agent {
 
 }
 
+#[derive(Debug,Serialize,Deserialize)]
 pub struct Memory {
     messages: Vec<Message>,
 }
@@ -196,7 +220,7 @@ pub enum AgentState {
     Cancelled,
 }
 
-#[derive(Clone,Serialize,Deserialize)]
+#[derive(Debug,Clone,Serialize,Deserialize)]
 pub enum Message {
     System(String),
     User(String),
@@ -214,6 +238,7 @@ impl Message{
         }
     }
 
+
 }
 
 
@@ -222,6 +247,8 @@ pub trait LLM {
         &mut self,
         memory: &Memory,
     ) -> anyhow::Result<ModelResponse>;
+
+    fn name(&self) -> &'static str;
 }
 pub struct Ollama {
     pub endpoint: String,
@@ -237,6 +264,9 @@ impl Ollama{
 }
 
 impl LLM for Ollama {
+    fn name(&self) -> &'static str {
+        "Ollama"
+    }
 
     fn complete(
         &mut self,

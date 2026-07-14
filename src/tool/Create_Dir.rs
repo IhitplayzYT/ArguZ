@@ -31,7 +31,7 @@ use path_clean::clean;
         format!("Created dir: {}",target)
     }
 
-struct mkdir;
+pub struct mkdir;
 
 
 impl Tool for mkdir{

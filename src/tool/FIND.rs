@@ -44,7 +44,7 @@ pub fn find_file(
     Ok(out)
 }
 
-    struct find;
+    pub struct find;
 
     impl Tool for find{
 

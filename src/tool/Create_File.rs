@@ -32,7 +32,7 @@ use crate::tool::{Create_Dir::create_dir::create_dir, tools::Tools::{AgentContex
         format!("File {} created and written to",target)
     }
 
-    struct touch;
+    pub struct touch;
 
     impl Tool for touch{
 

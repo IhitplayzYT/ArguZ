@@ -1,6 +1,7 @@
 pub mod Tools{
-    use std::{cmp::Ordering, collections::HashMap, f32::consts::E, fmt::Debug, fs::{self, DirEntry, FileType, Permissions, write}, os::unix::fs::PermissionsExt, path::PathBuf, process::Command};
-use path_clean::PathClean;
+    use std::{collections::HashMap, path::PathBuf};
+
+use crate::tool::{Cargo_Call::cargo_call::cargo, Cat_File::cat_file::cat, Change_Dir::change_dir::cd, Create_Dir::create_dir::mkdir, Create_File::create_file::touch, FIND::find::find, GREP::grep::Grep, List_Dir::list_dir::ls, Modify_File::modify_file::edit, Print_WD::print_wd::pwd, Remove_Dir::remove_dir::rm, Write_File::write_file::write_file};
 
 
 pub struct AgentContext {
@@ -37,7 +38,7 @@ pub struct ToolRegistry {
 }
 
 impl ToolRegistry {
-    pub fn new(ws: PathBuf) -> anyhow::Result<Self> {
+    pub fn new(ws:&PathBuf) -> anyhow::Result<Self> {
         let ws = ws.canonicalize()?;
 
         Ok(Self {
@@ -47,6 +48,16 @@ impl ToolRegistry {
             },
             tools: HashMap::new(),
         })
+    }
+
+    pub fn get_all(&self) -> String{
+        let mut buff = String::new();
+        self.tools.iter().for_each(|x| {
+            buff += x.0.as_str();
+            buff += " ";
+        });
+
+        buff.trim().to_string()
     }
 
 
@@ -124,6 +135,23 @@ impl ToolRegistry {
         out.push_str(&lines[lines.len()-tail..].join("\n"));
 
         out
+    }
+
+
+    pub fn insert_tools(reg: &mut ToolRegistry){
+        reg.register(cargo); 
+        reg.register(cat); 
+        reg.register(cd); 
+        reg.register(mkdir); 
+        reg.register(touch); 
+        reg.register(find); 
+        reg.register(Grep); 
+        reg.register(ls); 
+        reg.register(edit); 
+        reg.register(pwd); 
+        reg.register(rm); 
+        reg.register(write_file); 
+
     }
 
 
