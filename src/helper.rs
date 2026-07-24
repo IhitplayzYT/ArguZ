@@ -8,7 +8,31 @@ use serde::de::value::UsizeDeserializer;
 
 use crate::agent::Agent::Memory;
     
-    pub const DBG_STR:&str = "";
+    pub const DBG_STR:&str = "ArguZ - AI Agent Tool
+
+USAGE:
+    arguz [OPTIONS]
+
+OPTIONS:
+    -d, --debug              Enable debug mode
+    -h, --help               Show this help message
+    -u, --url=<URL>          Ollama endpoint URL (default: http://localhost:11434)
+    --min=<TOKENS>           Minimum context tokens (default: 0)
+    --max=<TOKENS>           Maximum context tokens (default: 100000, use 0 for unbounded)
+    --maxout=<TOKENS>        Maximum output tokens (default: 8192)
+    --root=<DIR>             Root directory for the agent workspace (default: current directory)
+    --model=<MODEL>          Ollama model name (default: llama3.2)
+    -s, --steps=<STEPS>      Maximum number of agent steps (default: 10)
+    --memory=<FILE>          Load memory from JSON file
+    -t, --temp=<TEMP>        Temperature for LLM (default: 0.4, range: 0.0-2.0)
+    --sysprompt=<PROMPT>     System prompt for the agent (required)
+    --prompt=<PROMPT>        Alias for --sysprompt
+
+EXAMPLES:
+    arguz --sysprompt=\"You are a helpful assistant\" --steps=20
+    arguz -u=http://localhost:11434 --model=llama3.2 --temp=0.7
+    arguz --root=/home/user/project --memory=./memory.json
+";
     pub const T_MIN:usize = 0;
     pub const T_MAX:usize = 100000;
     pub const TO_MAX:usize = 8192;
