@@ -1,11 +1,32 @@
 use std::{fs, process::exit};
 
-use crate::{agent::Agent::{Agent, AgentConfig, Memory, Ollama}, helper::Helper::CLI, tool::tools::Tools::insert_tools};
+use crate::{agent::Agent::{Agent, AgentConfig, Memory, Ollama}, helper::Helper::CLI, tool::tools::Tools::{insert_tools, ToolRegistry}};
 
 mod helper;
 mod agent;
 mod tool;
 
+fn generate_tool_guide(tools: &ToolRegistry) -> String {
+    let tool_names = tools.get_all();
+    format!(
+        "You have access to the following tools: {}\n\n\
+        When you need to use a tool, respond with a JSON object in this format:\n\
+        {{\n\
+            \"type\": \"tool\",\n\
+            \"name\": \"tool_name\",\n\
+            \"arguments\": {{\n\
+                \"param1\": \"value1\",\n\
+                \"param2\": \"value2\"\n\
+            }}\n\
+        }}\n\n\
+        When you have completed the task and have a final answer for the user, respond with:\n\
+        {{\n\
+            \"type\": \"final\",\n\
+            \"content\": \"your final response here\"\n\
+        }}",
+        tool_names
+    )
+}
 
 fn main() {
     let mut clargs = CLI::new();
@@ -22,6 +43,10 @@ fn main() {
     }
 
     insert_tools(&mut agent.tools);
+
+    // Add tool guide to system prompt
+    let tool_guide = generate_tool_guide(&agent.tools);
+    agent.memory.push_system(tool_guide);
 
     if clargs.dbg{
         println!("{}",agent);

@@ -128,14 +128,33 @@ impl Agent {
                 self.state = AgentState::Finished;
                 return Ok(format!("Max steps ({}) reached", self.config.max_steps));
             }
-            let response = self.model.complete(&self.memory)?;
+            let response = self.model.complete(&self.memory, &self.config)?;
             match response {
                 ModelResponse::ToolCall { name, arguments } => {
                     self.state = AgentState::ExecutingTool;
                     self.steps += 1;
+
+                    // Require user permission for Command tool
+                    if name == "Command" {
+                        println!("Agent wants to execute command: {:?}", arguments);
+                        print!("Do you permit this? (Yes/y to confirm): ");
+                        use std::io::Write;
+                        std::io::stdout().flush().unwrap();
+
+                        let mut permission = String::new();
+                        std::io::stdin().read_line(&mut permission).expect("Failed to read permission");
+                        let permission = permission.trim().to_lowercase();
+
+                        if permission != "yes" && permission != "y" {
+                            let error_msg = "Command execution denied by user".to_string();
+                            self.memory.push_tool(name, error_msg);
+                            continue;
+                        }
+                    }
+
                     let tool_output = self.tools.execute(&name, arguments)?;
                     self.memory.push_tool(name, tool_output);
-                    
+
                 }
                 ModelResponse::Final(content) => {
                     self.memory.push_assistant(content.clone());
@@ -267,6 +286,7 @@ pub trait LLM {
     fn complete(
         &mut self,
         memory: &Memory,
+        config: &AgentConfig,
     ) -> anyhow::Result<ModelResponse>;
 
     fn name(&self) -> &'static str;
@@ -292,13 +312,13 @@ impl LLM for Ollama {
     fn complete(
         &mut self,
         memory: &Memory,
+        config: &AgentConfig,
     ) -> anyhow::Result<ModelResponse> {
-    
         let req = OllamaRequest{
             model: &self.model,
             messages: memory.to_ollama(),
             stream:false,
-            temp: 0.4
+            temp: config.temperature,
         };
         let resp :OllamaResponse= self.client.post(format!("{}/api/chat",self.endpoint)).json(&req).send()?.error_for_status()?.json()?;
 
