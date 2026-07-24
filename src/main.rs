@@ -27,4 +27,21 @@ fn main() {
         println!("{}",agent);
     }   
 
+    println!("Enter your request:");
+    let mut user_input = String::new();
+    std::io::stdin().read_line(&mut user_input).expect("Failed to read input");
+    let user_input = user_input.trim().to_string();
+
+    match agent.run(user_input) {
+        Ok(response) => {
+            println!("Agent response:\n{}", response);
+        }
+        Err(e) => {
+            eprintln!("Agent error: {}", e);
+        }
+    }
+
+
+
+
 }

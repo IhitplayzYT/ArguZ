@@ -1,7 +1,7 @@
 pub mod Tools{
     use std::{collections::HashMap, path::PathBuf};
 
-use crate::tool::{Cargo_Call::cargo_call::cargo, Cat_File::cat_file::cat, Change_Dir::change_dir::cd, Create_Dir::create_dir::mkdir, Create_File::create_file::touch, FIND::find::find, GREP::grep::Grep, List_Dir::list_dir::ls, Modify_File::modify_file::edit, Print_WD::print_wd::pwd, Remove_Dir::remove_dir::rm, Write_File::write_file::write_file};
+use crate::tool::{Cargo_Call::cargo_call::cargo, Cat_File::cat_file::cat, Change_Dir::change_dir::cd, Command::command::Bash, Create_Dir::create_dir::mkdir, Create_File::create_file::touch, FIND::find::find, GREP::grep::Grep, List_Dir::list_dir::ls, Modify_File::modify_file::edit, Print_WD::print_wd::pwd, Remove_Dir::remove_dir::rm, Write_File::write_file::write_file};
 
 
 pub struct AgentContext {
@@ -151,6 +151,7 @@ impl ToolRegistry {
         reg.register(pwd); 
         reg.register(rm); 
         reg.register(write_file); 
+        reg.register(Bash);
 
     }
 

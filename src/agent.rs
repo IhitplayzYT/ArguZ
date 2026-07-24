@@ -114,6 +114,37 @@ impl Agent {
         &self.cwd
     }
 
+    pub fn run(&mut self, user_input: String) -> anyhow::Result<String> {
+        self.memory.push_user(user_input);
+        self.state = AgentState::Thinking;
+        self.steps = 0;
+
+        loop {
+            if self.is_cancelled() {
+                self.state = AgentState::Cancelled;
+                return Ok("Agent execution cancelled".to_string());
+            }
+            if self.steps >= self.config.max_steps {
+                self.state = AgentState::Finished;
+                return Ok(format!("Max steps ({}) reached", self.config.max_steps));
+            }
+            let response = self.model.complete(&self.memory)?;
+            match response {
+                ModelResponse::ToolCall { name, arguments } => {
+                    self.state = AgentState::ExecutingTool;
+                    self.steps += 1;
+                    let tool_output = self.tools.execute(&name, arguments)?;
+                    self.memory.push_tool(name, tool_output);
+                    
+                }
+                ModelResponse::Final(content) => {
+                    self.memory.push_assistant(content.clone());
+                    self.state = AgentState::Finished;
+                    return Ok(content);
+                }
+            }
+        }
+    }
 
 }
 
@@ -176,29 +207,19 @@ impl Memory {
     }
 
     fn to_ollama(&self) -> Vec<OllamaMessage> {
-
         self.messages.iter().map(|m| {
-
             match m {
-
                 Message::System(x) => OllamaMessage {
-                    role: "system".into(),
-                    content: x.clone(),
+                    role: "system".into(),content: x.clone(),
                 },
-
                 Message::User(x) => OllamaMessage {
-                    role: "user".into(),
-                    content: x.clone(),
+                    role: "user".into(),content: x.clone(),
                 },
-
                 Message::Assistant(x) => OllamaMessage {
-                    role: "assistant".into(),
-                    content: x.clone(),
+                    role: "assistant".into(),content: x.clone(),
                 },
-
                 Message::Tool(name, output) => OllamaMessage {
-                    role: "tool".into(),
-                    content: format!("{name}\n{output}"),
+                    role: "tool".into(),content: format!("{name}\n{output}"),
                 },
             }
 
@@ -281,8 +302,7 @@ impl LLM for Ollama {
         };
         let resp :OllamaResponse= self.client.post(format!("{}/api/chat",self.endpoint)).json(&req).send()?.error_for_status()?.json()?;
 
-        parse_ollama_response(resp.message.content)?;
-        todo!()
+        parse_ollama_response(resp.message.content)
     }
 
 }
